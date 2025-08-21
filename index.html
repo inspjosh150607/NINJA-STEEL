@@ -75,11 +75,28 @@
             font-size: 6vw;
             padding-top: 40vh;
         }
+        /* Tap to start overlay for orientation lock */
+        #tap-to-start {
+            display: none;
+            position: fixed;
+            z-index: 200;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.92);
+            color: #fff;
+            text-align: center;
+            align-items: center;
+            justify-content: center;
+            font-size: 7vw;
+            font-weight: bold;
+            padding-top: 40vh;
+            cursor: pointer;
+        }
         @media (orientation: portrait) {
             #rotate-warning { display: flex; }
         }
         @media (pointer: coarse) {
             #mobile-controls { display: flex; justify-content: center; }
+            #tap-to-start { display: flex; }
         }
     </style>
 </head> 
@@ -100,6 +117,11 @@
     <div id="rotate-warning">
         Please rotate your device<br/>for the best experience!
     </div>
+    <!-- Tap to start overlay (for orientation lock) -->
+    <div id="tap-to-start">
+        Tap to Start<br/>
+        <span style="font-size:4vw;font-weight:normal;display:block;margin-top:2vw;">(Switching to landscape...)</span>
+    </div>
 
     <script src="jquery-2.1.1.min.js"></script>
     <script src="c2runtime.js"></script>
@@ -116,9 +138,57 @@
         window.addEventListener('orientationchange', resizeCanvas, false);
         $(resizeCanvas);
 
-        $(document).ready(function () {
-            cr_createRuntime("c2canvas");
+        // Orientation lock on mobile with gesture
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
+        }
+
+        function tryLockLandscape() {
+            var orientation = (screen.orientation || screen.mozOrientation || screen.msOrientation);
+            if (orientation && orientation.lock) {
+                orientation.lock('landscape').catch(function(e){
+                    // Ignore or show fallback
+                });
+            }
+        }
+
+        // Show tap-to-start if mobile and in portrait
+        function showTapToStartIfNeeded() {
+            var tapOverlay = document.getElementById('tap-to-start');
+            if(isMobile() && window.innerWidth < window.innerHeight) {
+                tapOverlay.style.display = 'flex';
+            } else {
+                tapOverlay.style.display = 'none';
+            }
+        }
+
+        // Only start game after user taps (and try to lock orientation)
+        let crStarted = false;
+        document.getElementById('tap-to-start').addEventListener('click', function(){
+            tryLockLandscape();
+            this.style.display = 'none';
+            if(!crStarted){
+                $(document).ready(function () {
+                    cr_createRuntime("c2canvas");
+                });
+                crStarted = true;
+            }
         });
+
+        // If not mobile, or already landscape: start game immediately
+        $(function(){
+            if(!isMobile() || window.innerWidth > window.innerHeight){
+                cr_createRuntime("c2canvas");
+                crStarted = true;
+            } else {
+                showTapToStartIfNeeded();
+            }
+        });
+
+        // Recheck on resize/orientation
+        window.addEventListener('resize', showTapToStartIfNeeded);
+        window.addEventListener('orientationchange', showTapToStartIfNeeded);
+        setTimeout(showTapToStartIfNeeded, 100);
 
         // Visibility handling
         function onVisibilityChanged() {
